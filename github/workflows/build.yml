@@ -1,0 +1,39 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: فك الضغط
+        run: |
+          unzip -q Nawelny.zip
+          ls Nawelny
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Keystore
+        run: |
+          keytool -genkeypair -keystore $RUNNER_TEMP/keystore.jks -keyalg RSA -keysize 2048 -validity 10000 -alias nawelny -storepass nawelny123 -keypass nawelny123 -dname "CN=Android, O=Android, C=US"
+          echo "KEYSTORE_FILE=$RUNNER_TEMP/keystore.jks" >> $GITHUB_ENV
+          echo "KEYSTORE_PASSWORD=nawelny123" >> $GITHUB_ENV
+          echo "KEY_ALIAS=nawelny" >> $GITHUB_ENV
+          echo "KEY_PASSWORD=nawelny123" >> $GITHUB_ENV
+      - name: البناء
+        working-directory: Nawelny
+        run: gradle assembleRelease bundleRelease
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nawelny
+          path: |
+            Nawelny/app/build/outputs/apk/release/app-release.apk
+            Nawelny/app/build/outputs/bundle/release/app-release.bundle
