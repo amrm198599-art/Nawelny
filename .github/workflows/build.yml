@@ -1,4 +1,4 @@
-name: Build
+name: Build APK + AAB
 on:
   push:
     branches: [main]
@@ -31,29 +31,36 @@ jobs:
         with: { distribution: temurin, java-version: 17 }
 
       - uses: gradle/actions/setup-gradle@v4
-        with: { gradle-version: "8.9" }
+        with: { gradle-version: "8.11.1" }
 
       - name: Keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+          S_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          S_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          S_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          if [ -n "${{ secrets.KEYSTORE_B64 }}" ]; then
-            echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > $RUNNER_TEMP/release.jks
-            echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
-            echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
-            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "KEYSTORE_PASSWORD=$S_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=$S_KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=$S_KEY_PASSWORD" >> "$GITHUB_ENV"
           else
-            keytool -genkeypair -keystore $RUNNER_TEMP/release.jks -storepass nawelny123 -keypass nawelny123 -alias nawelny -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Nawelny"
-            echo "KEYSTORE_PASSWORD=nawelny123" >> $GITHUB_ENV
-            echo "KEY_ALIAS=nawelny" >> $GITHUB_ENV
-            echo "KEY_PASSWORD=nawelny123" >> $GITHUB_ENV
+            echo "No KEYSTORE_B64 secret: using the project keystore"
+            echo "KEYSTORE_PASSWORD=nawelny123" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=nawelny" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=nawelny123" >> "$GITHUB_ENV"
+            cp "$PROJECT_DIR/app/nawelny.jks" "$RUNNER_TEMP/release.jks"
           fi
-          echo "KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> $GITHUB_ENV
+          echo "KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
 
-      - name: Build
-        run: cd "$PROJECT_DIR" && gradle assembleRelease bundleRelease --stacktrace
+      - name: Build APK + AAB
+        run: cd "$PROJECT_DIR" && gradle assembleRelease bundleRelease --stacktrace --no-daemon
 
       - uses: actions/upload-artifact@v4
         with:
-          name: nawelny
+          name: nawelny-release
+          if-no-files-found: error
           path: |
             ${{ env.PROJECT_DIR }}/app/build/outputs/apk/release/*.apk
             ${{ env.PROJECT_DIR }}/app/build/outputs/bundle/release/*.aab
