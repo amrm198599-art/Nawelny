@@ -55,7 +55,25 @@ jobs:
           echo "KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
 
       - name: Build APK + AAB
-        run: cd "$PROJECT_DIR" && gradle assembleRelease bundleRelease --stacktrace --no-daemon
+        run: |
+          cd "$PROJECT_DIR"
+          set +e
+          gradle assembleRelease bundleRelease --stacktrace --no-daemon --console=plain > "$RUNNER_TEMP/build.log" 2>&1
+          CODE=$?
+          if [ $CODE -ne 0 ]; then
+            echo "::error::BUILD FAILED"
+            echo "=============== COMPILE ERRORS (lines starting with e:) ==============="
+            grep -E "^e: " "$RUNNER_TEMP/build.log" | head -60
+            echo "=============== WHAT WENT WRONG ==============="
+            grep -A8 "What went wrong" "$RUNNER_TEMP/build.log" | head -40
+          fi
+          exit $CODE
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-log
+          path: ${{ runner.temp }}/build.log
 
       - uses: actions/upload-artifact@v4
         with:
